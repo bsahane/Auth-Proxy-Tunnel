@@ -1,6 +1,3 @@
-# Auth-Proxy-Tunnel
-Deploy a Secure Application Access Stack with Cloudflare Tunnel, Nginx Proxy Manager, and Authentik using Docker Compose. Ideal for Self-Hosting with Authentication.
-
 # Self-Hosted Secure Access Stack: Cloudflare Tunnel, Nginx Proxy Manager & Authentik
 
 This project provides a Docker Compose setup for securely exposing self-hosted services to the internet using Cloudflare Tunnel, Nginx Proxy Manager, and Authentik for identity and access management.
