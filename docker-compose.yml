@@ -1,0 +1,254 @@
+name: goauthentik
+services:
+  cloudflared:
+    cpu_shares: 90
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CF_TUNNEL_TOKEN}
+    container_name: cloudflared-ngx
+    deploy:
+      resources:
+        limits:
+          memory: 15869M
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    hostname: cloudflared-ngx
+    image: cloudflare/cloudflared:latest
+    labels:
+      icon: https://vedproductions.in/wp-content/uploads/2025/05/file_000000004538622f8588011ad7aaa42f.webp
+    restart: unless-stopped
+    ports: []
+    volumes: []
+    devices: []
+    cap_add: []
+    network_mode: bridge
+    privileged: false
+  nginxproxymanager:
+    cpu_shares: 90
+    command: []
+    container_name: nginxproxymanager
+    deploy:
+      resources:
+        limits:
+          memory: 15869M
+        reservations:
+          memory: "134217728"
+    hostname: nginxproxymanager
+    image: jc21/nginx-proxy-manager:2.12.2
+    labels:
+      icon: https://vedproductions.in/wp-content/uploads/2025/05/file_000000004538622f8588011ad7aaa42f.webp
+    ports:
+      - target: 80
+        published: "4080"
+        protocol: tcp
+      - target: 443
+        published: "4443"
+        protocol: tcp
+      - target: 81
+        published: "4081"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/nginxproxymanager/data
+        target: /data
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/nginxproxymanager/etc/letsencrypt
+        target: /etc/letsencrypt
+    devices: []
+    cap_add: []
+    environment: []
+    network_mode: bridge
+    privileged: false
+  postgresql:
+    cpu_shares: 90
+    command: []
+    deploy:
+      resources:
+        limits:
+          memory: 15869M
+    environment:
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=true
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY_VALUE}
+      - PG_PASS=${POSTGRES_PASSWORD_VALUE}
+      - POSTGRES_DB=authentik
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_VALUE}
+      - POSTGRES_USER=authentik
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"
+      timeout: 5s
+      interval: 30s
+      retries: 5
+      start_period: 20s
+    image: docker.io/library/postgres:16-alpine
+    labels:
+      icon: https://vedproductions.in/wp-content/uploads/2025/05/file_000000004538622f8588011ad7aaa42f.webp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/goauthentik/postgresql
+        target: /var/lib/postgresql/data
+    ports: []
+    devices: []
+    cap_add: []
+    networks:
+      - default
+    privileged: false
+    container_name: authentik_postgres
+
+  redis:
+    cpu_shares: 90
+    command:
+      - --save
+      - "60"
+      - "1"
+      - --loglevel
+      - warning
+    deploy:
+      resources:
+        limits:
+          memory: 15869M
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli ping | grep PONG
+      timeout: 3s
+      interval: 30s
+      retries: 5
+      start_period: 20s
+    image: docker.io/library/redis:alpine
+    labels:
+      icon: https://vedproductions.in/wp-content/uploads/2025/05/file_000000004538622f8588011ad7aaa42f.webp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/goauthentik/redisdata
+        target: /data
+    ports: []
+    devices: []
+    cap_add: []
+    environment: []
+    networks:
+      - default
+    privileged: false
+    container_name: authentik_redis
+  server:
+    cpu_shares: 90
+    command:
+      - server
+    depends_on:
+      postgresql:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    deploy:
+      resources:
+        limits:
+          memory: 15869M
+    environment:
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD_VALUE}
+      - AUTHENTIK_POSTGRESQL__USER=authentik
+      - AUTHENTIK_REDIS__HOST=redis
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY_VALUE}
+      - PG_PASS=${POSTGRES_PASSWORD_VALUE}
+    image: ghcr.io/goauthentik/server:2025.4.1
+    labels:
+      icon: https://vedproductions.in/wp-content/uploads/2025/05/file_000000004538622f8588011ad7aaa42f.webp
+    ports:
+      - mode: ingress
+        target: 9000
+        published: "7100"
+        protocol: tcp
+      - mode: ingress
+        target: 9443
+        published: "7143"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/goauthentik/Media
+        target: /media
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/goauthentik/custom-templates
+        target: /templates
+    devices: []
+    cap_add: []
+    networks:
+      - default
+    privileged: false
+    container_name: authentik_server
+  worker:
+    cpu_shares: 90
+    command:
+      - worker
+    depends_on:
+      postgresql:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+    deploy:
+      resources:
+        limits:
+          memory: 15869M
+    environment:
+      - AUTHENTIK_ERROR_REPORTING__ENABLED=true
+      - AUTHENTIK_POSTGRESQL__HOST=postgresql
+      - AUTHENTIK_POSTGRESQL__NAME=authentik
+      - AUTHENTIK_POSTGRESQL__PASSWORD=${POSTGRES_PASSWORD_VALUE}
+      - AUTHENTIK_POSTGRESQL__USER=authentik
+      - AUTHENTIK_REDIS__HOST=redis
+      - AUTHENTIK_SECRET_KEY=${AUTHENTIK_SECRET_KEY_VALUE}
+      - PG_PASS=${POSTGRES_PASSWORD_VALUE}
+    image: ghcr.io/goauthentik/server:2025.4.1
+    labels:
+      icon: https://vedproductions.in/wp-content/uploads/2025/05/file_000000004538622f8588011ad7aaa42f.webp
+    restart: unless-stopped
+    user: root
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: bind
+        source: /DATA/Media
+        target: /media
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/goauthentik/certs
+        target: /certs
+      - type: bind
+        source: ${DATA_APPDATA_PATH}/goauthentik/custom-templates
+        target: /templates
+    ports: []
+    devices: []
+    cap_add: []
+    networks:
+      - default
+    privileged: false
+    container_name: authentik_worker
+networks:
+  default:
+    name: goauthentik_default
+x-casaos:
+  author: self
+  category: self
+  hostname: ""
+  icon: https://vedproductions.in/wp-content/uploads/2025/05/file_000000004538622f8588011ad7aaa42f.webp
+  index: /
+  is_uncontrolled: false
+  port_map: "4081"
+  scheme: http
+  store_app_id: goauthentik
+  title:
+    custom: Auth Proxy Tunnel
+    en_us: cloudflared
