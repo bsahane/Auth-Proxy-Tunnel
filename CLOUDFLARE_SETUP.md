@@ -1,6 +1,3 @@
-## `CLOUDFLARE_SETUP.md`
-
-```markdown
 # Cloudflare Tunnel Configuration Guide
 
 This guide details how to set up Cloudflare Tunnel and DNS to securely expose your Nginx Proxy Manager (NPM) instance, which then routes traffic to your self-hosted services like Authentik.
